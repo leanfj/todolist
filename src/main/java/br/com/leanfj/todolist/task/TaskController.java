@@ -23,57 +23,69 @@ import jakarta.servlet.http.HttpServletRequest;
 @RestController
 @RequestMapping("/tasks")
 public class TaskController {
-    
+
     @Autowired
     private ITaskRepository taskRepository;
 
     @PostMapping("/")
     public ResponseEntity create(@RequestBody TaskModel taskModel, HttpServletRequest request) {
 
-        taskModel.setStatus(TaskStatus.PENDING);
-        taskModel.setUserId(UUID.fromString(request.getAttribute("userId").toString()));
+        try {
+            taskModel.setStatus(TaskStatus.PENDING);
+            taskModel.setUserId(UUID.fromString(request.getAttribute("userId").toString()));
 
-        var task = this.taskRepository.save(taskModel);
+            var task = this.taskRepository.save(taskModel);
 
-        return ResponseEntity.status(HttpStatus.CREATED).body(task);
+            return ResponseEntity.status(HttpStatus.CREATED).body(task);
+        } catch (Exception e) {
+            // TODO: handle exception
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.getMessage());
+        }
     }
 
-
     @GetMapping("/")
-    public List<TaskModel> list(HttpServletRequest request) {
+    public ResponseEntity list(HttpServletRequest request) {
 
         var userId = request.getAttribute("userId");
 
         var tasks = this.taskRepository.findByUserId((UUID) userId);
 
-        return tasks;
+        return ResponseEntity.status(HttpStatus.OK).body(tasks);
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity update(@RequestBody TaskModel taskModel, HttpServletRequest request, @PathVariable("id") UUID id) {
-        
-        
+    public ResponseEntity update(@RequestBody TaskModel taskModel, HttpServletRequest request,
+            @PathVariable("id") UUID id) {
+
         var task = this.taskRepository.findById((UUID) id);
-        
-        if(task == null) {
+
+        if (task.isEmpty()) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Task not found");
         }
 
+        var userId = request.getAttribute("userId");
 
-        // private String title;
-        // private String description;
-        // private LocalDateTime updatedAt;
-        // private String priority;
-
-        if(taskModel.getTitle() != null) {
-            task.get().setTitle(taskModel.getTitle());
+        if (!task.get().getUserId().equals(userId)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Task not found for this user");
         }
 
-        if(taskModel.getDescription() != null) {
+        if (task.get().getStatus() == TaskStatus.FINISHED.toString()) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Task is finished");
+        }
+
+        if (taskModel.getTitle() != null) {
+            try {
+                task.get().setTitle(taskModel.getTitle());
+            } catch (Exception e) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.getMessage());
+            }
+        }
+
+        if (taskModel.getDescription() != null) {
             task.get().setDescription(taskModel.getDescription());
         }
 
-        if(taskModel.getPriority() != null) {
+        if (taskModel.getPriority() != null) {
             task.get().setPriority(taskModel.getPriority());
         }
 
@@ -84,16 +96,22 @@ public class TaskController {
         return ResponseEntity.status(HttpStatus.OK).body(task);
     }
 
-
     @PutMapping("/{id}/start")
     public ResponseEntity start(HttpServletRequest request, @PathVariable("id") UUID id) {
 
         var task = this.taskRepository.findById((UUID) id);
-        if(task == null) {
+
+        if (task.isEmpty()) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Task not found");
         }
 
-        if(task.get().getStatus() != TaskStatus.PENDING) {
+        var userId = request.getAttribute("userId");
+
+        if (!task.get().getUserId().equals(userId)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Task not found for this user");
+        }
+
+        if (task.get().getStatus() != TaskStatus.PENDING.toString()) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Task is not pending");
         }
 
@@ -106,19 +124,23 @@ public class TaskController {
 
     @PutMapping("/{id}/finish")
     public ResponseEntity finish(HttpServletRequest request, @PathVariable("id") UUID id) {
-        
-        
+
         var task = this.taskRepository.findById((UUID) id);
-        
-        if(task == null) {
+
+        if (task.isEmpty()) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Task not found");
         }
 
+        var userId = request.getAttribute("userId");
 
-        if(task.get().getStatus() != TaskStatus.STARTED) {
+        if (!task.get().getUserId().equals(userId)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Task not found for this user");
+        }
+
+        if (task.get().getStatus() != TaskStatus.STARTED.toString()) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Task is not started");
         }
- 
+
         task.get().finish();
 
         this.taskRepository.save(task.get());
