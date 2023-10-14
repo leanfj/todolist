@@ -10,6 +10,8 @@ RUN apt-get install -y maven
 RUN mvn clean install
 
 
+FROM openjdk:17-jdk-alpine
+
 EXPOSE 8080
 
 COPY --from=BUILD /target/todolist-1.0.0.jar app.jar
